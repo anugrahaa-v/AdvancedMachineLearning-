@@ -1,14 +1,17 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 
 from sklearn.datasets import fetch_california_housing
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LinearRegression, Lasso, Ridge
 from sklearn.pipeline import Pipeline
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.metrics import (
+    mean_absolute_error,
+    mean_squared_error,
+    r2_score
+)
 
 
 st.set_page_config(
@@ -20,6 +23,7 @@ st.title("California Housing Price Prediction")
 st.write("Linear Regression, Lasso and Ridge Regression")
 
 
+# Load Dataset
 @st.cache_data
 def load_dataset():
 
@@ -27,11 +31,25 @@ def load_dataset():
 
     df = data.frame.copy()
 
-    df["RoomsPerPerson"] = df["AveRooms"] / (df["Population"] + 1)
-    df["BedroomsPerRoom"] = df["AveBedrms"] / (df["AveRooms"] + 1)
-    df["PopulationPerHousehold"] = df["Population"] / (df["AveOccup"] + 1)
-    df["RoomsPerHousehold"] = df["AveRooms"] / (df["AveOccup"] + 1)
-    df["IncomePerRoom"] = df["MedInc"] / (df["AveRooms"] + 1)
+    df["RoomsPerPerson"] = (
+        df["AveRooms"] / (df["Population"] + 1)
+    )
+
+    df["BedroomsPerRoom"] = (
+        df["AveBedrms"] / (df["AveRooms"] + 1)
+    )
+
+    df["PopulationPerHousehold"] = (
+        df["Population"] / (df["AveOccup"] + 1)
+    )
+
+    df["RoomsPerHousehold"] = (
+        df["AveRooms"] / (df["AveOccup"] + 1)
+    )
+
+    df["IncomePerRoom"] = (
+        df["MedInc"] / (df["AveRooms"] + 1)
+    )
 
     return df
 
@@ -42,6 +60,7 @@ X = df.drop("MedHouseVal", axis=1)
 y = df["MedHouseVal"]
 
 
+# Train Test Split
 X_train, X_test, y_train, y_test = train_test_split(
     X,
     y,
@@ -51,63 +70,87 @@ X_train, X_test, y_train, y_test = train_test_split(
 
 
 # Linear Regression
+@st.cache_resource
+def train_linear():
 
-linear_model = Pipeline([
-    ("scaler", StandardScaler()),
-    ("model", LinearRegression())
-])
+    model = Pipeline([
+        ("scaler", StandardScaler()),
+        ("model", LinearRegression())
+    ])
 
-linear_model.fit(X_train, y_train)
+    model.fit(X_train, y_train)
+
+    return model
+
+
+linear_model = train_linear()
 
 linear_pred = linear_model.predict(X_test)
 
 
-# Lasso
+# Lasso Regression
+@st.cache_resource
+def train_lasso():
 
-lasso_model = Pipeline([
-    ("scaler", StandardScaler()),
-    ("model", Lasso(max_iter=10000))
-])
+    model = Pipeline([
+        ("scaler", StandardScaler()),
+        ("model", Lasso(max_iter=10000))
+    ])
 
-lasso_grid = GridSearchCV(
-    lasso_model,
-    {
+    params = {
         "model__alpha": np.logspace(-4, 1, 20)
-    },
-    cv=5,
-    scoring="neg_mean_squared_error",
-    n_jobs=-1
-)
+    }
 
-lasso_grid.fit(X_train, y_train)
+    grid = GridSearchCV(
+        model,
+        params,
+        cv=5,
+        scoring="neg_mean_squared_error",
+        n_jobs=-1
+    )
+
+    grid.fit(X_train, y_train)
+
+    return grid
+
+
+lasso_grid = train_lasso()
 
 lasso_pred = lasso_grid.predict(X_test)
 
 
-# Ridge
+# Ridge Regression
+@st.cache_resource
+def train_ridge():
 
-ridge_model = Pipeline([
-    ("scaler", StandardScaler()),
-    ("model", Ridge())
-])
+    model = Pipeline([
+        ("scaler", StandardScaler()),
+        ("model", Ridge())
+    ])
 
-ridge_grid = GridSearchCV(
-    ridge_model,
-    {
+    params = {
         "model__alpha": np.logspace(-4, 4, 20)
-    },
-    cv=5,
-    scoring="neg_mean_squared_error",
-    n_jobs=-1
-)
+    }
 
-ridge_grid.fit(X_train, y_train)
+    grid = GridSearchCV(
+        model,
+        params,
+        cv=5,
+        scoring="neg_mean_squared_error",
+        n_jobs=-1
+    )
+
+    grid.fit(X_train, y_train)
+
+    return grid
+
+
+ridge_grid = train_ridge()
 
 ridge_pred = ridge_grid.predict(X_test)
 
 
 # Metrics
-
 def get_metrics(actual, predicted):
 
     mae = mean_absolute_error(actual, predicted)
@@ -121,13 +164,23 @@ def get_metrics(actual, predicted):
     return mae, mse, rmse, r2
 
 
-linear_metrics = get_metrics(y_test, linear_pred)
-lasso_metrics = get_metrics(y_test, lasso_pred)
-ridge_metrics = get_metrics(y_test, ridge_pred)
+linear_metrics = get_metrics(
+    y_test,
+    linear_pred
+)
+
+lasso_metrics = get_metrics(
+    y_test,
+    lasso_pred
+)
+
+ridge_metrics = get_metrics(
+    y_test,
+    ridge_pred
+)
 
 
 # Sidebar
-
 st.sidebar.title("Menu")
 
 option = st.sidebar.selectbox(
@@ -137,36 +190,62 @@ option = st.sidebar.selectbox(
         "Model Performance",
         "Prediction",
         "Coefficients",
+        "Actual vs Predicted",
         "Alpha Analysis"
     ]
 )
 
 
 # Dataset
-
 if option == "Dataset":
 
     st.header("Dataset")
 
     col1, col2, col3 = st.columns(3)
 
-    col1.metric("Rows", df.shape[0])
+    col1.metric(
+        "Rows",
+        df.shape[0]
+    )
 
-    col2.metric("Features", X.shape[1])
+    col2.metric(
+        "Features",
+        X.shape[1]
+    )
 
-    col3.metric("Target", "MedHouseVal")
+    col3.metric(
+        "Target",
+        "MedHouseVal"
+    )
 
     st.subheader("Dataset Preview")
 
-    st.dataframe(df.head(10))
+    st.dataframe(
+        df.head(10),
+        use_container_width=True
+    )
 
-    st.subheader("Statistics")
+    st.subheader("Descriptive Statistics")
 
-    st.dataframe(df.describe())
+    st.dataframe(
+        df.describe(),
+        use_container_width=True
+    )
+
+    st.subheader("Missing Values")
+
+    st.dataframe(
+        df.isnull().sum(),
+        use_container_width=True
+    )
+
+    st.write(
+        "Duplicate Records:",
+        df.duplicated().sum()
+    )
 
 
 # Model Performance
-
 elif option == "Model Performance":
 
     st.header("Model Performance")
@@ -199,52 +278,50 @@ elif option == "Model Performance":
         ]
     })
 
-    st.dataframe(results.round(4))
-
-    st.subheader("Error Comparison")
-
-    fig, ax = plt.subplots()
-
-    results.set_index("Model")[["MAE", "RMSE"]].plot(
-        kind="bar",
-        ax=ax
+    st.dataframe(
+        results.round(4),
+        use_container_width=True
     )
 
-    ax.set_ylabel("Error")
+    st.subheader("MAE and RMSE Comparison")
 
-    st.pyplot(fig)
+    error_chart = results.set_index("Model")[
+        ["MAE", "RMSE"]
+    ]
 
-    st.subheader("R2 Score")
+    st.bar_chart(error_chart)
 
-    fig2, ax2 = plt.subplots()
+    st.subheader("R2 Score Comparison")
 
-    results.set_index("Model")["R2"].plot(
-        kind="bar",
-        ax=ax2
+    r2_chart = results.set_index("Model")[
+        ["R2"]
+    ]
+
+    st.bar_chart(r2_chart)
+
+    st.subheader("Best Alpha Values")
+
+    col1, col2 = st.columns(2)
+
+    col1.metric(
+        "Best Lasso Alpha",
+        f"{lasso_grid.best_params_['model__alpha']:.6f}"
     )
 
-    ax2.set_ylabel("R2 Score")
-
-    st.pyplot(fig2)
-
-    st.write(
-        "Best Lasso Alpha:",
-        lasso_grid.best_params_["model__alpha"]
-    )
-
-    st.write(
-        "Best Ridge Alpha:",
-        ridge_grid.best_params_["model__alpha"]
+    col2.metric(
+        "Best Ridge Alpha",
+        f"{ridge_grid.best_params_['model__alpha']:.6f}"
     )
 
 
 # Prediction
-
 elif option == "Prediction":
 
     st.header("House Value Prediction")
 
-    st.write("Enter the required values.")
+    st.write(
+        "Enter the feature values below."
+    )
 
     values = {}
 
@@ -255,7 +332,9 @@ elif option == "Prediction":
             value=float(X[feature].median())
         )
 
-    input_data = pd.DataFrame([values])
+    input_data = pd.DataFrame(
+        [values]
+    )
 
     model_name = st.selectbox(
         "Select Model",
@@ -266,7 +345,7 @@ elif option == "Prediction":
         ]
     )
 
-    if st.button("Predict"):
+    if st.button("Predict House Value"):
 
         if model_name == "Linear Regression":
 
@@ -287,21 +366,35 @@ elif option == "Prediction":
             )[0]
 
         st.success(
-            f"Predicted House Value: ${prediction * 100000:,.2f}"
+            f"Predicted House Value: "
+            f"${prediction * 100000:,.2f}"
         )
 
 
 # Coefficients
-
 elif option == "Coefficients":
 
     st.header("Feature Coefficients")
 
-    linear_coef = linear_model.named_steps["model"].coef_
+    linear_coef = (
+        linear_model
+        .named_steps["model"]
+        .coef_
+    )
 
-    lasso_coef = lasso_grid.best_estimator_.named_steps["model"].coef_
+    lasso_coef = (
+        lasso_grid
+        .best_estimator_
+        .named_steps["model"]
+        .coef_
+    )
 
-    ridge_coef = ridge_grid.best_estimator_.named_steps["model"].coef_
+    ridge_coef = (
+        ridge_grid
+        .best_estimator_
+        .named_steps["model"]
+        .coef_
+    )
 
     coef_df = pd.DataFrame({
         "Feature": X.columns,
@@ -310,47 +403,82 @@ elif option == "Coefficients":
         "Ridge": ridge_coef
     })
 
-    st.dataframe(coef_df.round(4))
-
-    fig, ax = plt.subplots(figsize=(12, 6))
-
-    coef_df.set_index("Feature").plot(
-        kind="bar",
-        ax=ax
+    st.dataframe(
+        coef_df.round(4),
+        use_container_width=True
     )
 
-    ax.set_ylabel("Coefficient")
+    st.subheader("Coefficient Comparison")
 
-    ax.set_title("Coefficient Comparison")
+    coefficient_chart = coef_df.set_index(
+        "Feature"
+    )[[
+        "Linear",
+        "Lasso",
+        "Ridge"
+    ]]
 
-    plt.xticks(rotation=45)
-
-    plt.tight_layout()
-
-    st.pyplot(fig)
+    st.bar_chart(coefficient_chart)
 
     zero_features = coef_df[
-        coef_df["Lasso"] == 0
+        np.isclose(coef_df["Lasso"], 0)
     ]["Feature"].tolist()
 
-    st.subheader("Lasso Zero Coefficients")
+    st.subheader(
+        "Features with Zero Lasso Coefficient"
+    )
 
-    if len(zero_features) > 0:
+    if zero_features:
 
         for feature in zero_features:
             st.write("•", feature)
 
     else:
 
-        st.write("No zero coefficients.")
+        st.write(
+            "No coefficients became zero."
+        )
+
+
+# Actual vs Predicted
+elif option == "Actual vs Predicted":
+
+    st.header("Actual vs Predicted Values")
+
+    prediction_df = pd.DataFrame({
+        "Actual": y_test.values,
+        "Lasso Predicted": lasso_pred,
+        "Ridge Predicted": ridge_pred
+    })
+
+    st.subheader("Lasso Regression")
+
+    st.line_chart(
+        prediction_df[
+            ["Actual", "Lasso Predicted"]
+        ].head(100)
+    )
+
+    st.subheader("Ridge Regression")
+
+    st.line_chart(
+        prediction_df[
+            ["Actual", "Ridge Predicted"]
+        ].head(100)
+    )
+
+    st.dataframe(
+        prediction_df.head(20).round(4),
+        use_container_width=True
+    )
 
 
 # Alpha Analysis
-
 elif option == "Alpha Analysis":
 
-    st.header("Grid Search Analysis")
+    st.header("Grid Search Alpha Analysis")
 
+    # Lasso
     lasso_results = pd.DataFrame(
         lasso_grid.cv_results_
     )
@@ -363,23 +491,20 @@ elif option == "Alpha Analysis":
         "mean_test_score"
     ]
 
-    st.subheader("Lasso Alpha vs CV Error")
+    lasso_chart = pd.DataFrame({
+        "Alpha": lasso_alpha.values,
+        "CV MSE": lasso_error.values
+    })
 
-    fig, ax = plt.subplots()
-
-    ax.semilogx(
-        lasso_alpha,
-        lasso_error,
-        marker="o"
+    st.subheader(
+        "Lasso Alpha vs Cross-Validation Error"
     )
 
-    ax.set_xlabel("Alpha")
+    st.line_chart(
+        lasso_chart.set_index("Alpha")
+    )
 
-    ax.set_ylabel("CV MSE")
-
-    st.pyplot(fig)
-
-
+    # Ridge
     ridge_results = pd.DataFrame(
         ridge_grid.cv_results_
     )
@@ -392,28 +517,33 @@ elif option == "Alpha Analysis":
         "mean_test_score"
     ]
 
-    st.subheader("Ridge Alpha vs CV Error")
+    ridge_chart = pd.DataFrame({
+        "Alpha": ridge_alpha.values,
+        "CV MSE": ridge_error.values
+    })
 
-    fig2, ax2 = plt.subplots()
-
-    ax2.semilogx(
-        ridge_alpha,
-        ridge_error,
-        marker="o"
+    st.subheader(
+        "Ridge Alpha vs Cross-Validation Error"
     )
 
-    ax2.set_xlabel("Alpha")
-
-    ax2.set_ylabel("CV MSE")
-
-    st.pyplot(fig2)
+    st.line_chart(
+        ridge_chart.set_index("Alpha")
+    )
 
     st.info(
         "Best Lasso Alpha: "
-        + str(lasso_grid.best_params_["model__alpha"])
+        + str(
+            lasso_grid.best_params_[
+                "model__alpha"
+            ]
+        )
     )
 
     st.info(
         "Best Ridge Alpha: "
-        + str(ridge_grid.best_params_["model__alpha"])
+        + str(
+            ridge_grid.best_params_[
+                "model__alpha"
+            ]
+        )
     )
