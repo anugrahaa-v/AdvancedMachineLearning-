@@ -19,39 +19,21 @@ st.title("California Housing Price Prediction")
 st.write("Linear Regression, Lasso and Ridge Regression")
 
 
-# Load Dataset
+# =========================
+# LOAD DATASET
+# =========================
+
 @st.cache_data
 def load_dataset():
 
     df = pd.read_csv("housing.csv")
 
-    df = df.copy()
+    # Remove unwanted spaces from column names
+    df.columns = df.columns.str.strip()
 
-    # Feature Engineering
-    if "AveRooms" in df.columns and "Population" in df.columns:
-        df["RoomsPerPerson"] = (
-            df["AveRooms"] / (df["Population"] + 1)
-        )
-
-    if "AveBedrms" in df.columns and "AveRooms" in df.columns:
-        df["BedroomsPerRoom"] = (
-            df["AveBedrms"] / (df["AveRooms"] + 1)
-        )
-
-    if "Population" in df.columns and "AveOccup" in df.columns:
-        df["PopulationPerHousehold"] = (
-            df["Population"] / (df["AveOccup"] + 1)
-        )
-
-    if "AveRooms" in df.columns and "AveOccup" in df.columns:
-        df["RoomsPerHousehold"] = (
-            df["AveRooms"] / (df["AveOccup"] + 1)
-        )
-
-    if "MedInc" in df.columns and "AveRooms" in df.columns:
-        df["IncomePerRoom"] = (
-            df["MedInc"] / (df["AveRooms"] + 1)
-        )
+    # Handle missing values
+    if df.isnull().sum().sum() > 0:
+        df = df.fillna(df.median(numeric_only=True))
 
     return df
 
@@ -59,11 +41,17 @@ def load_dataset():
 df = load_dataset()
 
 
-# Check Target
-if "MedHouseVal" not in df.columns:
+# =========================
+# TARGET COLUMN
+# =========================
+
+target = "median_house_value"
+
+
+if target not in df.columns:
 
     st.error(
-        "MedHouseVal column was not found in housing.csv."
+        "Target column 'median_house_value' was not found."
     )
 
     st.write("Columns found in your dataset:")
@@ -72,12 +60,62 @@ if "MedHouseVal" not in df.columns:
     st.stop()
 
 
-# Features and Target
-X = df.drop("MedHouseVal", axis=1)
-y = df["MedHouseVal"]
+# =========================
+# FEATURE ENGINEERING
+# =========================
+
+# Rooms per household
+if "total_rooms" in df.columns and "households" in df.columns:
+
+    df["rooms_per_household"] = (
+        df["total_rooms"] /
+        (df["households"] + 1)
+    )
 
 
-# Train Test Split
+# Bedrooms per room
+if "total_bedrooms" in df.columns and "total_rooms" in df.columns:
+
+    df["bedrooms_per_room"] = (
+        df["total_bedrooms"] /
+        (df["total_rooms"] + 1)
+    )
+
+
+# Population per household
+if "population" in df.columns and "households" in df.columns:
+
+    df["population_per_household"] = (
+        df["population"] /
+        (df["households"] + 1)
+    )
+
+
+# Income per room
+if "median_income" in df.columns and "total_rooms" in df.columns:
+
+    df["income_per_room"] = (
+        df["median_income"] /
+        (df["total_rooms"] + 1)
+    )
+
+
+# =========================
+# FEATURES AND TARGET
+# =========================
+
+X = df.drop(
+    target,
+    axis=1
+)
+
+y = df[target]
+
+
+# =========================
+# TRAIN TEST SPLIT
+# =========================
+
 X_train, X_test, y_train, y_test = train_test_split(
     X,
     y,
@@ -86,11 +124,19 @@ X_train, X_test, y_train, y_test = train_test_split(
 )
 
 
-# Linear Regression
+# =========================
+# LINEAR REGRESSION
+# =========================
 
 linear_model = Pipeline([
-    ("scaler", StandardScaler()),
-    ("model", LinearRegression())
+    (
+        "scaler",
+        StandardScaler()
+    ),
+    (
+        "model",
+        LinearRegression()
+    )
 ])
 
 linear_model.fit(
@@ -103,20 +149,39 @@ linear_pred = linear_model.predict(
 )
 
 
-# Lasso
+# =========================
+# LASSO REGRESSION
+# =========================
 
 lasso_model = Pipeline([
-    ("scaler", StandardScaler()),
-    ("model", Lasso(max_iter=10000))
+    (
+        "scaler",
+        StandardScaler()
+    ),
+    (
+        "model",
+        Lasso(
+            max_iter=10000
+        )
+    )
 ])
 
 lasso_grid = GridSearchCV(
     lasso_model,
+
     {
-        "model__alpha": np.logspace(-4, 1, 20)
+        "model__alpha":
+        np.logspace(
+            -4,
+            1,
+            20
+        )
     },
+
     cv=5,
+
     scoring="neg_mean_squared_error",
+
     n_jobs=-1
 )
 
@@ -130,20 +195,37 @@ lasso_pred = lasso_grid.predict(
 )
 
 
-# Ridge
+# =========================
+# RIDGE REGRESSION
+# =========================
 
 ridge_model = Pipeline([
-    ("scaler", StandardScaler()),
-    ("model", Ridge())
+    (
+        "scaler",
+        StandardScaler()
+    ),
+    (
+        "model",
+        Ridge()
+    )
 ])
 
 ridge_grid = GridSearchCV(
     ridge_model,
+
     {
-        "model__alpha": np.logspace(-4, 4, 20)
+        "model__alpha":
+        np.logspace(
+            -4,
+            4,
+            20
+        )
     },
+
     cv=5,
+
     scoring="neg_mean_squared_error",
+
     n_jobs=-1
 )
 
@@ -157,9 +239,14 @@ ridge_pred = ridge_grid.predict(
 )
 
 
-# Metrics
+# =========================
+# METRICS
+# =========================
 
-def get_metrics(actual, predicted):
+def get_metrics(
+    actual,
+    predicted
+):
 
     mae = mean_absolute_error(
         actual,
@@ -197,7 +284,9 @@ ridge_metrics = get_metrics(
 )
 
 
-# Sidebar
+# =========================
+# SIDEBAR
+# =========================
 
 st.sidebar.title("Menu")
 
@@ -213,7 +302,9 @@ option = st.sidebar.selectbox(
 )
 
 
-# Dataset
+# =========================
+# DATASET
+# =========================
 
 if option == "Dataset":
 
@@ -233,25 +324,37 @@ if option == "Dataset":
 
     col3.metric(
         "Target",
-        "MedHouseVal"
+        "median_house_value"
     )
 
-    st.subheader("Dataset Preview")
-
-    st.dataframe(
-        df.head(10)
+    st.subheader(
+        "Dataset Preview"
     )
 
-    st.subheader("Statistics")
-
     st.dataframe(
-        df.describe()
+        df.head(10),
+        use_container_width=True
     )
 
-    st.subheader("Missing Values")
+    st.subheader(
+        "Dataset Dimensions"
+    )
+
+    st.write(
+        f"Rows: {df.shape[0]}"
+    )
+
+    st.write(
+        f"Columns: {df.shape[1]}"
+    )
+
+    st.subheader(
+        "Missing Values"
+    )
 
     st.dataframe(
-        df.isnull().sum()
+        df.isnull().sum(),
+        use_container_width=True
     )
 
     st.write(
@@ -259,12 +362,25 @@ if option == "Dataset":
         df.duplicated().sum()
     )
 
+    st.subheader(
+        "Descriptive Statistics"
+    )
 
-# Model Performance
+    st.dataframe(
+        df.describe(),
+        use_container_width=True
+    )
+
+
+# =========================
+# MODEL PERFORMANCE
+# =========================
 
 elif option == "Model Performance":
 
-    st.header("Model Performance")
+    st.header(
+        "Model Performance"
+    )
 
     results = pd.DataFrame({
 
@@ -300,25 +416,50 @@ elif option == "Model Performance":
     })
 
     st.dataframe(
-        results.round(4)
+        results.round(4),
+        use_container_width=True
     )
 
-    st.subheader("Error Comparison")
+    # Error comparison
+
+    st.subheader(
+        "Error Comparison"
+    )
 
     fig, ax = plt.subplots()
 
     results.set_index(
         "Model"
-    )[["MAE", "RMSE"]].plot(
+    )[[
+        "MAE",
+        "RMSE"
+    ]].plot(
         kind="bar",
         ax=ax
     )
 
-    ax.set_ylabel("Error")
+    ax.set_ylabel(
+        "Error"
+    )
+
+    ax.set_title(
+        "MAE and RMSE Comparison"
+    )
+
+    plt.xticks(
+        rotation=0
+    )
+
+    plt.tight_layout()
 
     st.pyplot(fig)
 
-    st.subheader("R2 Score")
+
+    # R2
+
+    st.subheader(
+        "R² Score Comparison"
+    )
 
     fig2, ax2 = plt.subplots()
 
@@ -329,33 +470,50 @@ elif option == "Model Performance":
         ax=ax2
     )
 
-    ax2.set_ylabel("R2 Score")
+    ax2.set_ylabel(
+        "R² Score"
+    )
+
+    ax2.set_title(
+        "R² Score"
+    )
+
+    plt.xticks(
+        rotation=0
+    )
+
+    plt.tight_layout()
 
     st.pyplot(fig2)
 
-    st.write(
-        "Best Lasso Alpha:",
-        lasso_grid.best_params_[
-            "model__alpha"
-        ]
+
+    # Alpha
+
+    col1, col2 = st.columns(2)
+
+    col1.metric(
+        "Best Lasso Alpha",
+        f"{lasso_grid.best_params_['model__alpha']:.6f}"
     )
 
-    st.write(
-        "Best Ridge Alpha:",
-        ridge_grid.best_params_[
-            "model__alpha"
-        ]
+    col2.metric(
+        "Best Ridge Alpha",
+        f"{ridge_grid.best_params_['model__alpha']:.6f}"
     )
 
 
-# Prediction
+# =========================
+# PREDICTION
+# =========================
 
 elif option == "Prediction":
 
-    st.header("House Value Prediction")
+    st.header(
+        "House Value Prediction"
+    )
 
     st.write(
-        "Enter the required values."
+        "Enter the required feature values."
     )
 
     values = {}
@@ -382,7 +540,9 @@ elif option == "Prediction":
         ]
     )
 
-    if st.button("Predict"):
+    if st.button(
+        "Predict House Value"
+    ):
 
         if model_name == "Linear Regression":
 
@@ -404,15 +564,19 @@ elif option == "Prediction":
 
         st.success(
             f"Predicted House Value: "
-            f"${prediction * 100000:,.2f}"
+            f"${prediction:,.2f}"
         )
 
 
-# Coefficients
+# =========================
+# COEFFICIENTS
+# =========================
 
 elif option == "Coefficients":
 
-    st.header("Feature Coefficients")
+    st.header(
+        "Feature Coefficients"
+    )
 
     linear_coef = (
         linear_model
@@ -446,7 +610,12 @@ elif option == "Coefficients":
     })
 
     st.dataframe(
-        coef_df.round(4)
+        coef_df.round(4),
+        use_container_width=True
+    )
+
+    st.subheader(
+        "Coefficient Comparison"
     )
 
     fig, ax = plt.subplots(
@@ -465,16 +634,20 @@ elif option == "Coefficients":
     )
 
     ax.set_title(
-        "Coefficient Comparison"
+        "Linear vs Lasso vs Ridge Coefficients"
     )
 
     plt.xticks(
-        rotation=45
+        rotation=45,
+        ha="right"
     )
 
     plt.tight_layout()
 
     st.pyplot(fig)
+
+
+    # Zero coefficients
 
     zero_features = coef_df[
         np.isclose(
@@ -503,7 +676,9 @@ elif option == "Coefficients":
         )
 
 
-# Alpha Analysis
+# =========================
+# ALPHA ANALYSIS
+# =========================
 
 elif option == "Alpha Analysis":
 
@@ -511,7 +686,8 @@ elif option == "Alpha Analysis":
         "Grid Search Analysis"
     )
 
-    # Lasso
+
+    # LASSO
 
     lasso_results = pd.DataFrame(
         lasso_grid.cv_results_
@@ -548,10 +724,16 @@ elif option == "Alpha Analysis":
         "CV MSE"
     )
 
+    ax.set_title(
+        "Lasso Grid Search"
+    )
+
+    plt.tight_layout()
+
     st.pyplot(fig)
 
 
-    # Ridge
+    # RIDGE
 
     ridge_results = pd.DataFrame(
         ridge_grid.cv_results_
@@ -588,7 +770,14 @@ elif option == "Alpha Analysis":
         "CV MSE"
     )
 
+    ax2.set_title(
+        "Ridge Grid Search"
+    )
+
+    plt.tight_layout()
+
     st.pyplot(fig2)
+
 
     st.info(
         "Best Lasso Alpha: "
